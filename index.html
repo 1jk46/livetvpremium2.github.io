@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Channel Links</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-top: 50px;
+            padding: 0 20px;
+            background-color: #f4f4f4;
+            transition: background-color 0.3s, color 0.3s;
+        }
+        h1 {
+            color: #333;
+        }
+        .search-bar, .category-filter {
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+        }
+        .search-input {
+            padding: 10px;
+            font-size: 16px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+        .button, select {
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            border-radius: 5px;
+            border: none;
+            transition: background-color 0.3s;
+        }
+        .button:hover {
+            background-color: #45a049;
+        }
+        iframe {
+            margin-top: 20px;
+            width: 100%;
+            max-width: 800px;
+            height: 500px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            background-color: #fff;
+            loading: "lazy"; /* Lazy load the iframe */
+        }
+        #error-message {
+            color: red;
+            display: none;
+        }
+        #loading-message {
+            display: none;
+            font-weight: bold;
+        }
+        #spinner {
+            border: 4px solid #f3f3f3; /* Light grey */
+            border-top: 4px solid #3498db; /* Blue */
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 2s linear infinite;
+            display: none; /* Initially hidden */
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .dark-mode {
+            background-color: #333;
+            color: #fff;
+        }
+        .feedback {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+
+<header role="banner">
+    <h1>Channel Links</h1>
+    <div class="search-bar">
+        <input type="text" id="search-input" class="search-input" placeholder="Search channels..." aria-label="Search channels" oninput="debouncedFilterChannels()">
+        <button class="button" onclick="clearSearch()">Clear All</button>
+        <button class="button" onclick="toggleDarkMode()">Toggle Dark Mode</button>
+        <button class="button" onclick="toggleFavorites()">Show Favorites</button>
+    </div>
+    <div class="category-filter">
+        <select id="category-select" onchange="filterByCategory()">
+            <option value="">All Categories</option>
+            <option value="Sports">Sports</option>
+            <option value="Movies">Movies</option>
+            <option value="Kids">Kids</option>
+        </select>
+    </div>
+</header>
+
+<main role="main">
+    <div class="channel-count" id="channel-count"></div>
+    <nav id="channel-nav" role="navigation" aria-label="Channel navigation"></nav>
+
+    <div id="spinner" role="alert" aria-live="polite"></div>
+    <iframe id="stream" data-src="" frameborder="0" allowfullscreen aria-label="Streaming video player"></iframe>
+    <div id="loading-message" aria-live="polite">Loading video stream...</div>
+    <div id="error-message" aria-live="polite"></div>
+</main>
+
+<button class="fullscreen-button" onclick="toggleFullscreen()">Toggle Fullscreen</button>
+<div id="feedback" class="feedback" aria-live="polite"></div>
+
+<script>
+    const channels = [
+        { name: 'A and e', url: 'https://dlhd.sx/embed/stream-302.php', category: 'Movies' },
+        { name: 'AMC', url: 'https://dlhd.sx/embed/stream-303.php', category: 'Movies' },
+        { name: 'Animal Planet', url: 'https://dlhd.sx/embed/stream-304.php', category: 'Kids' },
+        { name: 'Astro Cricket', url: 'https://thedaddy.to/embed/stream-370.php', category: 'Sports' },
+        { name: 'CBC', url: 'https://dlhd.sx/embed/stream-832.php', category: 'News' },
+        { name: 'CTV', url: 'https://dlhd.sx/embed/stream-602.php', category: 'News' },
+        { name: 'CTV 2 Canada', url: 'https://dlhd.sx/embed/stream-838.php', category: 'News' },
+        { name: 'Cartoon Network', url: 'https://dlhd.sx/embed/stream-339.php', category: 'Kids' },
+        { name: 'Comedy Central', url: 'https://dlhd.sx/embed/stream-310.php', category: 'Comedy' },
+        { name: 'Cooking Channel', url: 'https://dlhd.sx/embed/stream-697.php', category: 'Cooking' },
+        { name: 'Disney Channel', url: 'https://dlhd.sx/embed/stream-312.php', category: 'Kids' },
+        { name: 'Disney XD', url: 'https://dlhd.sx/embed/stream-314.php', category: 'Kids' },
+        { name: 'Discovery Channel', url: 'https://dlhd.sx/embed/stream-313.php', category: 'Documentary' },
+        { name: 'Discovery Family', url: 'https://dlhd.sx/embed/stream-657.php', category: 'Kids' },
+        { name: 'ESPN', url: 'https://dlhd.sx/embed/stream-44.php', category: 'Sports' },
+        { name: 'ESPN2', url: 'https://dlhd.sx/embed/stream-45.php', category: 'Sports' },
+        { name: 'ESPNU', url: 'https://dlhd.sx/embed/stream-316.php', category: 'Sports' },
+        { name: 'Game Show Network', url: 'https://dlhd.sx/embed/stream-319.php', category: 'Games' },
+        { name: 'Hallmark Movies & Mysteries', url: 'https://thedaddy.to/embed/stream-296.php', category: 'Movies' },
+        { name: 'HBO', url: 'https://dlhd.sx/embed/stream-321.php', category: 'Movies' },
+        { name: 'HBO 2', url: 'https://dlhd.sx/embed/stream-689.php', category: 'Movies' },
+        { name: 'HBO Comedy', url: 'https://dlhd.sx/embed/stream-690.php', category: 'Comedy' },
+        { name: 'HBO Family', url: 'https://dlhd.sx/embed/stream-691.php', category: 'Kids' },
+        { name: 'HGTV', url: 'https://thedaddy.to/embed/stream-382.php', category: 'Home' },
+        { name: 'METV', url: 'https://dlhd.sx/embed/stream-662.php', category: 'Classic' },
+        { name: 'NHL Network', url: 'https://dlhd.sx/embed/stream-663.php', category: 'Sports' },
+        { name: 'Sportsnet One', url: 'https://thedaddy.to/embed/stream-411.php', category: 'Sports' },
+        { name: 'Sportsnet Ontario', url: 'https://thedaddy.to/embed/stream-406.php', category: 'Sports' },
+        { name: 'Starz', url: 'https://thedaddy.to/embed/stream-335.php', category: 'Movies' },
+        { name: 'The Hallmark Channel', url: 'https://dlhd.sx/embed/stream-320.php', category: 'Movies' },
+        { name: 'The Hallmark', url: 'https://thedaddy.to/embed/stream-678.php', category: 'Movies' },
+        { name: 'TV Land', url: 'https://thedaddy.to/embed/stream-342.php', category: 'Comedy' },
+        { name: 'Yes tv', url: 'https://dlhd.sx/embed/stream-837.php', category: 'Kids' }
+    ].sort((a, b) => a.name.localeCompare(b.name));
+
+    let debounceTimer;
+    let favorites = JSON.parse(localStorage.getItem('favorites')) || [];
+    let showOnlyFavorites = false;
+    let lastSelectedChannel = localStorage.getItem('lastSelectedChannel');
+
+    function renderChannels() {
+        const channelNav = document.getElementById('channel-nav');
+        channelNav.innerHTML = '';
+
+        const filteredChannels = channels.filter(channel => {
+            const matchesSearch = channel.name.toLowerCase().includes((document.getElementById('search-input').value || '').toLowerCase());
+            const matchesCategory = showOnlyFavorites ? favorites.includes(channel.name) : true;
+
+            return matchesSearch && matchesCategory;
+        });
+
+        document.getElementById('channel-count').innerText = `${filteredChannels.length} channel(s) found.`;
+
+        filteredChannels.forEach(channel => {
+            const button = document.createElement('button');
+            button.innerText = channel.name;
+            button.className = 'button';
+            button.onclick = () => selectChannel(channel.url);
+            channelNav.appendChild(button);
+        });
+    }
+
+    function selectChannel(url) {
+        document.getElementById('loading-message').style.display = 'block';
+        document.getElementById('spinner').style.display = 'block';
+        document.getElementById('error-message').style.display = 'none';
+        const iframe = document.getElementById('stream');
+        iframe.src = ""; // Clear the iframe before loading new content
+        setTimeout(() => {
+            iframe.src = url; // Load the new URL after a short delay
+            iframe.onload = () => {
+                document.getElementById('loading-message').style.display = 'none';
+                document.getElementById('spinner').style.display = 'none';
+            };
+            iframe.onerror = () => {
+                document.getElementById('loading-message').style.display = 'none';
+                document.getElementById('spinner').style.display = 'none';
+                document.getElementById('error-message').innerText = 'Failed to load video stream.';
+                document.getElementById('error-message').style.display = 'block';
+            };
+        }, 200); // Delay to show spinner
+        localStorage.setItem('lastSelectedChannel', url);
+    }
+
+    function filterByCategory() {
+        renderChannels();
+    }
+
+    function clearSearch() {
+        document.getElementById('search-input').value = '';
+        renderChannels();
+    }
+
+    function debouncedFilterChannels() {
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(renderChannels, 300); // Debounce for 300ms
+    }
+
+    function toggleDarkMode() {
+        document.body.classList.toggle('dark-mode');
+    }
+
+    function toggleFavorites() {
+        showOnlyFavorites = !showOnlyFavorites;
+        renderChannels();
+    }
+
+    function toggleFullscreen() {
+        const iframe = document.getElementById('stream');
+        if (iframe.requestFullscreen) {
+            iframe.requestFullscreen();
+        } else if (iframe.mozRequestFullScreen) { // Firefox
+            iframe.mozRequestFullScreen();
+        } else if (iframe.webkitRequestFullscreen) { // Chrome, Safari, and Opera
+            iframe.webkitRequestFullscreen();
+        } else if (iframe.msRequestFullscreen) { // IE/Edge
+            iframe.msRequestFullscreen();
+        }
+    }
+
+    window.onload = () => {
+        renderChannels();
+        if (lastSelectedChannel) {
+            selectChannel(lastSelectedChannel);
+        }
+    };
+</script>
+</body>
+</html>
